@@ -110,7 +110,14 @@
   .api-url-bar{background:var(--ink);color:var(--gold);font-family:'DM Mono',monospace;font-size:12px;padding:10px 16px;border-radius:var(--radius-sm);margin-bottom:24px;display:flex;align-items:center;gap:10px;}
   .api-url-dot{width:8px;height:8px;background:#4CAF50;border-radius:50%;}
   .token-display{background:var(--cream);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);word-break:break-all;margin-top:12px;}
-  @media(max-width:900px){.stats-grid{grid-template-columns:1fr 1fr;}.grid-2{grid-template-columns:1fr;}.sidebar{display:none;}}
+  @media(max-width:900px){.stats-grid{grid-template-columns:1fr 1fr;}.grid-2{grid-template-columns:1fr;}
+    .main-layout{flex-direction:column;}
+    .sidebar{width:auto;height:auto;position:static;padding:8px 12px;display:flex;gap:4px;overflow-x:auto;border-right:none;border-bottom:1px solid var(--border);}
+    .sidebar-section{display:flex;gap:4px;margin:0;}
+    .sidebar-section-title{display:none;}
+    .nav-item{width:auto;white-space:nowrap;}
+    .content{padding:20px 16px;}
+  }
 </style>
 </head>
 <body>
