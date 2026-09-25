@@ -173,6 +173,9 @@
         <button class="nav-item" onclick="showSection('pacientes',this)">
           <span class="nav-item-icon">🧑‍🦽</span> Pacientes
         </button>
+        <button class="nav-item" onclick="showSection('tarifas',this)">
+          <span class="nav-item-icon">💲</span> Tarifas
+        </button>
       </div>
       <div class="sidebar-section">
         <div class="sidebar-section-title">Sistema</div>
@@ -287,6 +290,23 @@
       </div>
 
       <!-- API -->
+      <div class="section" id="section-tarifas">
+        <div class="page-header">
+          <div><div class="page-title">Tarifas</div><div class="page-subtitle">Precios fijos que ve el paciente antes de pedir (COP, incluyen desplazamiento e insumos básicos)</div></div>
+          <button class="btn btn-teal" onclick="loadTarifas()">↻ Actualizar</button>
+        </div>
+        <div class="card">
+          <div class="card-body" style="padding:0">
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Servicio</th><th>Descripción</th><th>Precio (COP)</th><th>Activo</th><th>Última actualización</th><th></th></tr></thead>
+                <tbody id="tarifas-tbody"><tr><td colspan="6"><div class="loading"><div class="spinner"></div> Cargando...</div></td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="section" id="section-api">
         <div class="page-header">
           <div><div class="page-title">API & Conexión</div><div class="page-subtitle">Estado del sistema</div></div>
@@ -390,6 +410,34 @@ function showSection(name, btn) {
   if (name === 'profesionales') loadProfesionales();
   if (name === 'pacientes') loadPacientes();
   if (name === 'api') checkHealth();
+  if (name === 'tarifas') loadTarifas();
+}
+
+async function loadTarifas() {
+  var tbody = document.getElementById('tarifas-tbody');
+  var data = await apiFetch('/api/tarifas');
+  if (!data || !data.items) { tbody.innerHTML = '<tr><td colspan="6">No se pudieron cargar las tarifas.</td></tr>'; return; }
+  tbody.innerHTML = data.items.map(function(t){
+    return '<tr>' +
+      '<td><strong>' + t.nombre + '</strong></td>' +
+      '<td style="color:var(--muted)">' + (t.descripcion || '') + '</td>' +
+      '<td><input type="number" id="tarifa-' + t.tipo + '" value="' + t.precio + '" min="10000" step="1000" style="width:120px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-family:inherit"></td>' +
+      '<td><input type="checkbox" id="activo-' + t.tipo + '"' + (t.activo ? ' checked' : '') + '></td>' +
+      '<td style="color:var(--muted)">' + formatDate(t.updatedAt) + '</td>' +
+      '<td><button class="btn btn-teal btn-sm" onclick="guardarTarifa(\'' + t.tipo + '\', this)">Guardar</button></td>' +
+    '</tr>';
+  }).join('');
+}
+
+async function guardarTarifa(tipo, btn) {
+  var precio = parseInt(document.getElementById('tarifa-' + tipo).value, 10);
+  var activo = document.getElementById('activo-' + tipo).checked;
+  if (!precio || precio < 10000) { btn.textContent = 'Mínimo $10.000'; return; }
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  var res = await apiFetch('/api/tarifas/' + tipo, { method: 'PUT', body: JSON.stringify({ precio: precio, activo: activo }) });
+  btn.disabled = false;
+  btn.textContent = (res && res.tipo) ? 'Guardado' : 'Error, reintente';
+  setTimeout(function(){ btn.textContent = 'Guardar'; }, 2500);
 }
 
 async function loadDashboard() {
