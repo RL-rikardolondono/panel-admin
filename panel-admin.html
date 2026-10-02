@@ -176,6 +176,9 @@
         <button class="nav-item" onclick="showSection('tarifas',this)">
           <span class="nav-item-icon">💲</span> Tarifas
         </button>
+        <button class="nav-item" onclick="showSection('pagos',this)">
+          <span class="nav-item-icon">💳</span> Pagos
+        </button>
       </div>
       <div class="sidebar-section">
         <div class="sidebar-section-title">Sistema</div>
@@ -307,6 +310,24 @@
         </div>
       </div>
 
+      <div class="section" id="section-pagos">
+        <div class="page-header">
+          <div><div class="page-title">Pagos</div><div class="page-subtitle">El paciente paga a la IPS al confirmar. El valor del profesional se libera cuando registra la nota clínica y completa el servicio.</div></div>
+          <button class="btn btn-teal" onclick="loadPagos()">↻ Actualizar</button>
+        </div>
+        <div class="stats-grid" id="pagos-resumen" style="margin-bottom:24px"></div>
+        <div class="card">
+          <div class="card-body" style="padding:0">
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Estado</th><th>Profesional</th><th>Paciente / servicio</th><th>Pagado (COP)</th><th>Comisión IPS</th><th>Para el profesional</th><th>Cuenta</th><th></th></tr></thead>
+                <tbody id="pagos-tbody"><tr><td colspan="8"><div class="loading"><div class="spinner"></div> Cargando...</div></td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div class="section" id="section-api">
         <div class="page-header">
           <div><div class="page-title">API & Conexión</div><div class="page-subtitle">Estado del sistema</div></div>
@@ -411,6 +432,49 @@ function showSection(name, btn) {
   if (name === 'pacientes') loadPacientes();
   if (name === 'api') checkHealth();
   if (name === 'tarifas') loadTarifas();
+  if (name === 'pagos') loadPagos();
+}
+
+var ETIQUETA_LIQ = {
+  retenido: ['Retenido', 'Pagado por el paciente; servicio en curso'],
+  liberado: ['Por transferir', 'Servicio completado; transferir al profesional'],
+  transferido: ['Transferido', 'Ya pagado al profesional'],
+  reembolso: ['Reembolso pendiente', 'Servicio cancelado después de pagar']
+};
+function cop(n) { return '$' + Number(n || 0).toLocaleString('es-CO', {maximumFractionDigits: 0}); }
+function esc(t) { return String(t == null ? '' : t).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+async function loadPagos() {
+  var tbody = document.getElementById('pagos-tbody');
+  var data = await apiFetch('/api/pagos/liquidaciones');
+  if (!data || !data.items) { tbody.innerHTML = '<tr><td colspan="8">No se pudieron cargar los pagos.</td></tr>'; return; }
+  var res = {}; (data.resumen || []).forEach(function(r){ res[r.estadoLiquidacion] = r; });
+  document.getElementById('pagos-resumen').innerHTML = ['retenido','liberado','transferido','reembolso'].map(function(k){
+    var r = res[k] || {_count:{_all:0}, _sum:{}};
+    var valor = k === 'liberado' || k === 'transferido' ? r._sum.valorProfesional : r._sum.monto;
+    return '<div class="stat-card"><div class="stat-label">' + ETIQUETA_LIQ[k][0] + '</div><div class="stat-value" style="font-size:26px">' + cop(valor) + '</div><div class="stat-change">' + r._count._all + ' servicio(s)</div></div>';
+  }).join('');
+  if (!data.items.length) { tbody.innerHTML = '<tr><td colspan="8" style="color:var(--muted)">Aún no hay pagos aprobados.</td></tr>'; return; }
+  tbody.innerHTML = data.items.map(function(p){
+    var s = p.servicio || {}, pr = s.profesional, pac = s.paciente || {};
+    var nombrePac = pac.nombreCompleto || (pac.usuario && pac.usuario.nombreCompleto) || '—';
+    var cuenta = pr && pr.cuentaBancaria ? esc(pr.banco || '') + ' ' + esc(pr.tipoCuenta || '') + ' ' + esc(pr.cuentaBancaria) : '<span style="color:var(--muted)">Sin datos</span>';
+    var accion = '';
+    if (p.estadoLiquidacion === 'liberado') accion = '<button class="btn btn-teal btn-sm" onclick="marcarLiquidacion(\'' + p.id + '\',\'transferido\',this)">Marcar transferido</button>';
+    if (p.estadoLiquidacion === 'reembolso') accion = '<button class="btn btn-teal btn-sm" onclick="marcarLiquidacion(\'' + p.id + '\',\'reembolsado\',this)">Marcar reembolsado</button>';
+    return '<tr>' +
+      '<td><strong>' + ETIQUETA_LIQ[p.estadoLiquidacion][0] + '</strong><div style="color:var(--muted);font-size:12px">' + ETIQUETA_LIQ[p.estadoLiquidacion][1] + '</div></td>' +
+      '<td>' + (pr && pr.usuario ? esc(pr.usuario.nombreCompleto) : '—') + '</td>' +
+      '<td>' + esc(nombrePac) + '<div style="color:var(--muted);font-size:12px">' + tipoLabel(s.tipo) + '</div></td>' +
+      '<td>' + cop(p.monto) + '</td><td>' + cop(p.comision) + '</td><td><strong>' + cop(p.valorProfesional) + '</strong></td>' +
+      '<td style="font-size:12px">' + cuenta + '</td><td>' + accion + '</td></tr>';
+  }).join('');
+}
+
+async function marcarLiquidacion(id, accion, btn) {
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  var res = await apiFetch('/api/pagos/liquidaciones/' + id + '/' + accion, { method: 'PUT', body: '{}' });
+  if (res && res.ok) { loadPagos(); } else { btn.disabled = false; btn.textContent = (res && res.error) || 'Error, reintente'; }
 }
 
 async function loadTarifas() {
